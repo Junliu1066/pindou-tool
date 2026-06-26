@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拼豆图纸生成器 · 图片转坐标图</title>
+<script>
+/* ===== 前端日志：捕获错误，存本地，方便用户回报、作者修 bug ===== */
+window.APP_VERSION = '1.0.0';
+(function(){
+  const KEY='pindou_logs', MAX=50;
+  try{ localStorage.setItem('pindou_ver', APP_VERSION); }catch{}
+  function read(){ try{return JSON.parse(localStorage.getItem(KEY))||[];}catch{return [];} }
+  function save(a){ try{localStorage.setItem(KEY, JSON.stringify(a.slice(-MAX)));}catch{} }
+  window.logEvent=function(type,msg,extra){
+    const a=read();
+    a.push({t:new Date().toISOString(),v:APP_VERSION,type,msg:String(msg).slice(0,500),
+      ua:navigator.userAgent,url:location.href, ...extra});
+    save(a);
+    return a[a.length-1];
+  };
+  function report(rec){
+    // 出错时弹一个可关闭的提示，提供「复制错误信息」给用户发给作者
+    let bar=document.getElementById('errBar');
+    if(!bar){ bar=document.createElement('div'); bar.id='errBar'; document.body&&document.body.appendChild(bar); }
+    if(!bar) return;
+    bar.innerHTML=`⚠️ 出了点小问题，不影响继续用。如愿意帮忙修复：
+      <button id="errCopy">复制错误信息</button><button id="errClose">关闭</button>`;
+    bar.style.display='flex';
+    bar.querySelector('#errCopy').onclick=()=>{
+      navigator.clipboard?.writeText(JSON.stringify(rec,null,2));
+      bar.querySelector('#errCopy').textContent='已复制 ✓';
+    };
+    bar.querySelector('#errClose').onclick=()=>bar.style.display='none';
+  }
+  window.addEventListener('error',e=>{ const r=logEvent('error',e.message,{stack:(e.error&&e.error.stack||'').slice(0,800),line:e.lineno,col:e.colno}); report(r); });
+  window.addEventListener('unhandledrejection',e=>{ const r=logEvent('promise', e.reason&&e.reason.message||e.reason); report(r); });
+})();
+</script>
+<style>
+  :root{
+    --bg:#0f1115;--panel:#181b22;--panel2:#212530;--line:#2b303c;
+    --text:#e9ecf1;--sub:#9aa2b1;--accent:#5b9dff;--accent2:#4ade80;--warn:#fbbf24;--bad:#f87171;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#0a0c10;color:var(--text);line-height:1.5}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:18px}
+  header .tag{font-size:12px;color:var(--sub);background:var(--panel2);padding:3px 9px;border-radius:20px}
+  .wrap{display:flex;gap:16px;padding:16px;flex-wrap:wrap;align-items:flex-start}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .left{width:320px;flex-shrink:0}
+  .right{flex:1;min-width:340px}
+  h2{font-size:14px;margin-bottom:10px;color:var(--text)}
+  label{display:block;font-size:12px;color:var(--sub);margin:12px 0 4px}
+  input,select,button,textarea{font-family:inherit}
+  input[type=number],select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:26px 12px;text-align:center;color:var(--sub);font-size:13px;cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--text)}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  button.primary{background:var(--accent);color:#06101f;border-color:transparent}
+  button.primary:disabled{opacity:.4;cursor:not-allowed}
+  button.go{background:var(--accent2);color:#04210f;border-color:transparent;width:100%;padding:11px;font-size:14px;margin-top:14px}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px}
+  .advice{margin-top:14px;padding:11px 12px;border-radius:9px;font-size:12.5px;line-height:1.6;border:1px solid var(--line);background:var(--panel2)}
+  .advice.ok{border-color:#2f6b46;background:#13241a}
+  .advice.warn{border-color:#7a5e16;background:#241f10}
+  .advice.bad{border-color:#7a2b2b;background:#241313}
+  .advice b{color:var(--text)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:none;border-radius:0;background:var(--panel2);padding:7px 13px}
+  .seg button.active{background:var(--accent);color:#06101f}
+  .canvas-box{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:10px;background:#0c0e13}
+  canvas{display:block;image-rendering:pixelated}
+  .legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin-top:14px}
+  .chip{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:5px 7px;cursor:pointer;font-size:12px;transition:.12s}
+  .chip:hover{border-color:var(--accent)}
+  .chip.active{border-color:var(--accent2);background:#14241a}
+  .chip.dim{opacity:.4}
+  .sw{width:18px;height:18px;border-radius:4px;flex-shrink:0;border:1px solid rgba(255,255,255,.25)}
+  .chip .code{font-weight:700}
+  .chip .cnt{color:var(--sub);margin-left:auto}
+  .empty{color:var(--sub);font-size:13px;text-align:center;padding:60px 20px}
+  .small{font-size:11px;color:var(--sub)}
+  details{margin-top:12px;font-size:12px;color:var(--sub)}
+  summary{cursor:pointer}
+  .stat{font-size:12px;color:var(--sub);margin-top:8px}
+  .stat b{color:var(--text)}
+  .exp{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  /* 悬浮缩放控件 */
+  #zoomFab{position:fixed;right:18px;bottom:18px;z-index:50;display:none;align-items:center;gap:2px;
+    background:rgba(24,27,34,.92);border:1px solid var(--line);border-radius:999px;padding:4px;
+    box-shadow:0 6px 20px rgba(0,0,0,.45);backdrop-filter:blur(6px);cursor:grab}
+  #zoomFab.show{display:flex}
+  #zoomFab.drag{cursor:grabbing}
+  #zoomFab button{width:34px;height:34px;border-radius:999px;border:none;background:transparent;color:var(--text);font-size:17px;font-weight:700;padding:0;line-height:1;touch-action:none}
+  #zoomFab button:hover{background:var(--panel2)}
+  #zoomFab #zoomLvl{width:auto;min-width:50px;font-size:12px;font-weight:600;color:var(--sub)}
+  /* 错误提示条 */
+  #errBar{display:none;position:fixed;left:12px;right:12px;bottom:70px;z-index:60;gap:8px;align-items:center;
+    flex-wrap:wrap;background:#3a1e1e;border:1px solid #7a3030;color:#ffd9d9;border-radius:10px;
+    padding:10px 12px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  #errBar button{margin-left:auto;background:#7a3030;border:none;color:#fff;border-radius:7px;padding:6px 11px;font-size:12px;cursor:pointer}
+  #errBar button#errClose{margin-left:0;background:transparent;border:1px solid #7a3030}
+
+  /* ===== 移动端 / 平板适配 ===== */
+  @media (max-width:860px){
+    header{padding:12px 14px;gap:8px}
+    header h1{font-size:16px}
+    .wrap{padding:10px;gap:12px}
+    .left,.right{width:100%;flex:1 1 100%;min-width:0}
+    .col{padding:13px;border-radius:11px}
+    .canvas-box{max-height:62vh}
+    .legend{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+    .toolbar{gap:6px}
+    .exp{margin-top:0}
+    /* 触摸友好：更大的点击区 */
+    button{padding:11px 14px}
+    .seg button{padding:10px 14px}
+    .chip{padding:8px 9px}
+    input[type=number],select{padding:11px 10px;font-size:16px} /* 16px 防 iOS 自动放大 */
+    #zoomFab button{width:42px;height:42px;font-size:20px}
+    #zoomFab #zoomLvl{min-width:54px;font-size:13px}
+  }
+  @media (max-width:860px) and (min-width:560px){
+    /* 平板：左设置区两列更紧凑，右侧仍在下方 */
+    .left{max-width:560px;margin:0 auto}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 拼豆图纸生成器</h1>
+  <span class="tag">图片 → 坐标图</span>
+  <span class="tag">点色号高亮</span>
+  <span class="tag">纯本地·不上传服务器</span>
+</header>
+
+<div class="wrap">
+  <!-- ============ 左侧：设置 ============ -->
+  <div class="col left">
+    <h2>1 · 上传图片</h2>
+    <div class="drop" id="drop">点击或拖入图片<br><span class="small">支持 png / jpg</span></div>
+    <input type="file" id="file" accept="image/*" hidden>
+
+    <h2 style="margin-top:18px">2 · 设计尺寸</h2>
+    <label>拼豆宽度（横向几颗豆）</label>
+    <div class="row">
+      <input type="number" id="cols" value="58" min="8" max="200">
+      <select id="preset">
+        <option value="">常用尺寸…</option>
+        <option value="29">迷你 29</option>
+        <option value="58">小图 58</option>
+        <option value="87">中图 87</option>
+        <option value="116">大图 116</option>
+        <option value="145">超大 145</option>
+      </select>
+    </div>
+    <div class="hint">高度按原图比例自动计算。</div>
+
+    <label>单颗豆直径（mm）</label>
+    <select id="bead">
+      <option value="2.6">2.6mm（迷你豆）</option>
+      <option value="5" selected>5mm（标准豆）</option>
+    </select>
+
+    <div class="advice" id="advice">上传图片后给出大图/小图建议。</div>
+
+    <button class="go" id="gen" disabled>生成坐标图 →</button>
+
+    <details>
+      <summary>调色板设置（高级）</summary>
+      <p class="hint">默认内置一套常用色（MARD 风格）。要 100% 对应官方 221 色，把官方「色号 HEX」按 <code>A1 #f7f3d6</code> 每行一个粘进来。</p>
+      <textarea id="palText" rows="4" placeholder="A1 #f7f3d6&#10;H7 #111111 ..."></textarea>
+      <button id="applyPal" style="margin-top:8px">应用自定义调色板</button>
+    </details>
+  </div>
+
+  <!-- ============ 右侧：结果 ============ -->
+  <div class="col right">
+    <div class="toolbar">
+      <div class="seg" id="mode">
+        <button data-m="preview" class="active">🎨 成品预览</button>
+        <button data-m="chart">📐 坐标图</button>
+      </div>
+      <label style="margin:0"><input type="checkbox" id="grid" checked style="width:auto"> 网格线</label>
+      <label style="margin:0"><input type="checkbox" id="guide" checked style="width:auto"> 辅助线<span class="small">(5/10格)</span></label>
+      <button id="clearSel" style="display:none">显示全部颜色</button>
+      <div style="flex:1"></div>
+      <div class="exp">
+        <button id="expChart">导出坐标图 PNG</button>
+        <button id="expPreview">导出成品图 PNG</button>
+        <button id="expLayers">导出分色图层 ZIP-less</button>
+      </div>
+    </div>
+
+    <div class="canvas-box" id="cbox">
+      <div class="empty" id="empty">左侧上传图片并点「生成坐标图」<br>这里会显示可交互的图纸</div>
+      <canvas id="cv" style="display:none"></canvas>
+    </div>
+
+    <div class="stat" id="stat"></div>
+    <div id="legend" class="legend"></div>
+  </div>
+</div>
+
+<!-- 悬浮缩放控件：始终可见 -->
+<div id="zoomFab">
+  <button id="zoomOut" title="缩小">－</button>
+  <button id="zoomLvl" title="点击复位 100%">100%</button>
+  <button id="zoomIn" title="放大">＋</button>
+</div>
+
+<script>
+/* ================= 调色板 ================= */
+// 内置常用色（MARD 风格近似）。可被自定义覆盖。
+let PALETTE = parsePalette(`
+A1 #f8f3cf  A2 #fbf0a3  A3 #ffe14d  A4 #ffd21f  A5 #ffb43b  A6 #ff9a3c
+A7 #ff7f3f  A8 #ff8a4d  A9 #ff7034  A10 #ff5f1f  A12 #ffc98a  A23 #d9b48a
+G1 #f6d9b6  G2 #f3cba0  G3 #d99a5c  G4 #cf8a3e  G7 #7a4a1e  G8 #5e3415
+G13 #8a5a2b  G19 #b06a2a  G20 #8a4a1e
+E1 #f6cfc7  E14 #f8b89a  E15 #f3a98a
+F1 #f08a6a  F16 #f3a18a
+H1 #ffffff  H2 #f2f2f2  H3 #c7ccd1  H4 #9aa1aa  H5 #5a626d  H6 #2c3138
+H7 #111111  H8 #3a4049  H9 #d5d9de  H13 #e7eaee  H15 #aeb8c0  H16 #000000
+H20 #7b828c  H22 #8c929b
+M3 #6f7d72  M4 #c9c3b4
+`);
+
+function parsePalette(str){
+  const out=[];
+  str.trim().split(/\s+/).reduce((acc,tok)=>{
+    if(/^#/.test(tok)){ out.push({code:acc, hex:tok, rgb:hex2rgb(tok)}); return null; }
+    return tok;
+  },null);
+  return out;
+}
+function hex2rgb(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function lum(c){return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];}
+
+/* 最近色匹配（加权 RGB，近似感知距离） */
+function nearest(r,g,b){
+  let best=PALETTE[0],bd=1e9;
+  for(const p of PALETTE){
+    const dr=r-p.rgb[0],dg=g-p.rgb[1],db=b-p.rgb[2];
+    const rm=(r+p.rgb[0])/2;
+    const d=(2+rm/256)*dr*dr+4*dg*dg+(2+(255-rm)/256)*db*db;
+    if(d<bd){bd=d;best=p;}
+  }
+  return best;
+}
+
+/* ================= 状态 ================= */
+let srcImg=null, grid=null, gcols=0, grows=0, usedColors=[], selected=null, viewMode='preview';
+const $=id=>document.getElementById(id);
+
+/* ================= 上传 ================= */
+const drop=$('drop'), file=$('file');
+drop.onclick=()=>file.click();
+file.onchange=e=>{ if(e.target.files[0]) loadImg(e.target.files[0]); };
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadImg(f); });
+
+function loadImg(f){
+  const img=new Image();
+  img.onload=()=>{ srcImg=img; drop.innerHTML=`已载入 ${img.width}×${img.height}px<br><span class="small">点击更换</span>`; $('gen').disabled=false; updateAdvice(); };
+  img.src=URL.createObjectURL(f);
+}
+
+/* ================= 尺寸建议 ================= */
+$('preset').onchange=e=>{ if(e.target.value){$('cols').value=e.target.value; updateAdvice();} };
+$('cols').oninput=updateAdvice;
+$('bead').onchange=updateAdvice;
+
+function calcRows(){ if(!srcImg) return 0; return Math.round(+$('cols').value * srcImg.height/srcImg.width); }
+
+function updateAdvice(){
+  const box=$('advice');
+  if(!srcImg){ box.className='advice'; box.textContent='上传图片后给出大图/小图建议。'; return; }
+  const cols=+$('cols').value, rows=calcRows(), bead=+$('bead').value;
+  const total=cols*rows;
+  const wmm=(cols*bead/10).toFixed(1), hmm=(rows*bead/10).toFixed(1);
+  let cls='ok', msg='';
+  // 太小：细节放不下
+  const minDetail=Math.min(srcImg.width,srcImg.height);
+  if(cols<24){
+    cls='bad';
+    msg=`<b>太小了，禁止生成。</b><br>横向只有 ${cols} 颗豆，这张图的细节（脸、五官）拼不出来，会糊成一团。建议至少 <b>40 颗</b>以上。`;
+    $('gen').disabled=true;
+  }else{
+    $('gen').disabled=false;
+    if(cols<=29){ cls='warn'; msg=`<b>偏小图。</b>适合图标/简单图案。复杂图（如人物）细节会丢失。`; }
+    else if(cols<=58){ cls='ok'; msg=`<b>小图，推荐。</b>新手友好、用豆少、拼得快，细节够用。`; }
+    else if(cols<=116){ cls='ok'; msg=`<b>中/大图。</b>细节丰富，但用豆多、耗时长。`; }
+    else{ cls='warn'; msg=`<b>超大图。</b>非常考验耐心，一块拼豆板（通常 29×29）放不下，需要 <b>${Math.ceil(cols/29)}×${Math.ceil(rows/29)}</b> 块板拼接。`; }
+  }
+  box.className='advice '+cls;
+  box.innerHTML=msg+`<hr style="border:none;border-top:1px solid var(--line);margin:8px 0">
+    尺寸：<b>${cols} × ${rows}</b> 颗　≈ <b>${wmm}×${hmm} cm</b><br>
+    用豆约 <b>${total.toLocaleString()}</b> 颗　·　拼豆板 <b>${Math.ceil(cols/29)}×${Math.ceil(rows/29)}</b> 块（按 29×29）`;
+}
+
+/* ================= 生成 ================= */
+$('gen').onclick=generate;
+function generate(){
+  const cols=+$('cols').value, rows=calcRows();
+  gcols=cols; grows=rows;
+  // 缩放取样
+  const tmp=document.createElement('canvas'); tmp.width=cols; tmp.height=rows;
+  const tx=tmp.getContext('2d'); tx.imageSmoothingEnabled=true;
+  tx.drawImage(srcImg,0,0,cols,rows);
+  const data=tx.getImageData(0,0,cols,rows).data;
+  grid=new Array(rows);
+  const counts={};
+  for(let y=0;y<rows;y++){
+    grid[y]=new Array(cols);
+    for(let x=0;x<cols;x++){
+      const i=(y*cols+x)*4, a=data[i+3];
+      if(a<32){ grid[y][x]=null; continue; } // 透明=空位
+      const p=nearest(data[i],data[i+1],data[i+2]);
+      grid[y][x]=p;
+      counts[p.code]=(counts[p.code]||0)+1;
+    }
+  }
+  usedColors=PALETTE.filter(p=>counts[p.code]).map(p=>({...p,count:counts[p.code]})).sort((a,b)=>b.count-a.count);
+  selected=null; setZoom(1);
+  try{ localStorage.setItem('pindou_gen_count', (+localStorage.getItem('pindou_gen_count')||0)+1);
+       localStorage.setItem('pindou_last_used', new Date().toISOString()); }catch{}
+  $('zoomFab').classList.add('show');
+  $('empty').style.display='none'; $('cv').style.display='block';
+  renderLegend(); render();
+  $('stat').innerHTML=`共 <b>${usedColors.length}</b> 种颜色　·　<b>${usedColors.reduce((s,c)=>s+c.count,0).toLocaleString()}</b> 颗豆　·　图纸 <b>${gcols}×${grows}</b>`;
+}
+
+/* ================= 渲染 ================= */
+const cv=$('cv'), ctx=cv.getContext('2d');
+let CELL=22, zoom=1; // 每颗豆像素 / 缩放倍数
+function cellSize(){
+  // 坐标图需要写字，给大一点；预览可小
+  const base = viewMode==='chart'
+    ? Math.max(16, Math.min(30, Math.floor(1100/gcols)))
+    : Math.max(6, Math.min(20, Math.floor(900/gcols)));
+  return Math.max(3, Math.round(base*zoom));
+}
+function render(){
+  if(!grid) return;
+  CELL=cellSize();
+  const showCode=viewMode==='chart';
+  const showGrid=$('grid').checked;
+  const pad=Math.max(24, Math.round(CELL*0.85)); // 坐标尺，两种模式都显示
+  cv.width=gcols*CELL+pad; cv.height=grows*CELL+pad;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.font=`${Math.max(8,CELL*0.42)}px monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+
+  // 选中某色时，记录它所在的行/列，便于在坐标尺上标出
+  const selCols=new Set(), selRows=new Set();
+  if(selected){
+    for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){
+      const p=grid[y][x]; if(p&&p.code===selected){selCols.add(x);selRows.add(y);}
+    }
+  }
+
+  for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){
+    const p=grid[y][x]; const px=pad+x*CELL, py=pad+y*CELL;
+    if(!p){ continue; }
+    const isSel = selected && p.code===selected;
+    const dim = selected && !isSel;
+    // 其他颜色仍按真实颜色显示，只是整体压暗一点，依然看得清
+    ctx.globalAlpha = dim ? 0.45 : 1;
+    ctx.fillStyle = p.hex;
+    ctx.fillRect(px,py,CELL,CELL);
+    ctx.globalAlpha = 1;
+    if(showGrid){ ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1; ctx.strokeRect(px+.5,py+.5,CELL,CELL); }
+    if(showCode){
+      ctx.globalAlpha = dim ? 0.5 : 1;
+      ctx.fillStyle = lum(p.rgb)>140?'#222':'#fff';
+      ctx.fillText(p.code, px+CELL/2, py+CELL/2);
+      ctx.globalAlpha = 1;
+    }
+    if(isSel){ ctx.strokeStyle='#16a34a'; ctx.lineWidth=Math.max(2,CELL*0.12); ctx.strokeRect(px+1,py+1,CELL-2,CELL-2); }
+  }
+
+  // ===== 辅助线（对应拼豆板：每 5 格一小格、每 10 格一大格）=====
+  if($('guide').checked){
+    const gx=gcols*CELL, gy=grows*CELL;
+    const line=(n,color,w)=>{
+      ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath();
+      for(let x=n;x<gcols;x+=n){ const X=pad+x*CELL+.5; ctx.moveTo(X,pad); ctx.lineTo(X,pad+gy); }
+      for(let y=n;y<grows;y+=n){ const Y=pad+y*CELL+.5; ctx.moveTo(pad,Y); ctx.lineTo(pad+gx,Y); }
+      ctx.stroke();
+    };
+    line(5,'rgba(56,132,255,0.55)',Math.max(1,CELL*0.06));   // 5×5 小格
+    line(10,'rgba(255,70,70,0.80)',Math.max(1.5,CELL*0.1));  // 10×10 大格
+    // 外边框（大格基准）
+    ctx.strokeStyle='rgba(255,70,70,0.80)'; ctx.lineWidth=Math.max(1.5,CELL*0.1);
+    ctx.strokeRect(pad+.5,pad+.5,gx,gy);
+  }
+
+  // ===== 坐标尺 =====
+  const rf=Math.max(8, Math.min(CELL*0.45, pad*0.5));
+  ctx.font=`${rf}px monospace`;
+  // 选中色所在行列：高亮底色，让用户一眼看到对应坐标
+  if(selected){
+    ctx.fillStyle='rgba(34,197,94,0.30)';
+    selCols.forEach(x=>ctx.fillRect(pad+x*CELL,0,CELL,pad));
+    selRows.forEach(y=>ctx.fillRect(0,pad+y*CELL,pad,CELL));
+  }
+  // 表头底
+  ctx.fillStyle='rgba(255,255,255,0.04)';
+  const showEvery = CELL<14?5:1;
+  for(let x=0;x<gcols;x++){
+    if(x%showEvery && !selCols.has(x)) continue;
+    ctx.fillStyle = selCols.has(x)?'#4ade80':'#9aa2b1';
+    ctx.fillText(x+1, pad+x*CELL+CELL/2, pad/2);
+  }
+  for(let y=0;y<grows;y++){
+    if(y%showEvery && !selRows.has(y)) continue;
+    ctx.fillStyle = selRows.has(y)?'#4ade80':'#9aa2b1';
+    ctx.fillText(y+1, pad/2, pad+y*CELL+CELL/2);
+  }
+}
+
+function renderLegend(){
+  const L=$('legend'); L.innerHTML='';
+  usedColors.forEach(c=>{
+    const d=document.createElement('div'); d.className='chip'+(selected===c.code?' active':selected?' dim':'');
+    d.innerHTML=`<span class="sw" style="background:${c.hex}"></span><span class="code">${c.code}</span><span class="cnt">${c.count}</span>`;
+    d.onclick=()=>{ selected = selected===c.code?null:c.code; $('clearSel').style.display=selected?'inline-block':'none'; renderLegend(); render(); };
+    L.appendChild(d);
+  });
+}
+$('clearSel').onclick=()=>{ selected=null; $('clearSel').style.display='none'; renderLegend(); render(); };
+
+/* ================= 视图切换 ================= */
+$('mode').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  $('mode').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); viewMode=b.dataset.m; render();
+});
+$('grid').onchange=render;
+$('guide').onchange=render;
+
+/* ================= 缩放 ================= */
+function setZoom(z){ zoom=Math.max(0.3,Math.min(6,z)); $('zoomLvl').textContent=Math.round(zoom*100)+'%'; render(); }
+// 点按步进；长按连续缩放
+function holdZoom(btn,factor){
+  let t,iv;
+  const start=e=>{ e.preventDefault(); setZoom(zoom*factor);
+    t=setTimeout(()=>{ iv=setInterval(()=>setZoom(zoom*Math.pow(factor,0.6)),60); },350); };
+  const stop=()=>{ clearTimeout(t); clearInterval(iv); };
+  btn.addEventListener('pointerdown',start);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop));
+}
+holdZoom($('zoomIn'),1.25);
+holdZoom($('zoomOut'),1/1.25);
+$('zoomLvl').onclick=()=>setZoom(1);
+// 触控板捏合 / Ctrl+滚轮 缩放
+$('cbox').addEventListener('wheel',e=>{ if(e.ctrlKey||e.metaKey){ e.preventDefault(); setZoom(zoom*(e.deltaY<0?1.1:0.9)); } },{passive:false});
+// 双指捏合缩放（手机/触屏）
+let pinchStart=0;
+$('cbox').addEventListener('touchstart',e=>{ if(e.touches.length===2){ pinchStart=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/zoom; } },{passive:true});
+$('cbox').addEventListener('touchmove',e=>{ if(e.touches.length===2&&pinchStart){ e.preventDefault(); const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); setZoom(d/pinchStart); } },{passive:false});
+$('cbox').addEventListener('touchend',()=>{ pinchStart=0; });
+
+// 悬浮控件可拖到任意位置
+(function(){
+  const fab=$('zoomFab'); let dx,dy,moved,drag=false;
+  function down(x,y){ const r=fab.getBoundingClientRect(); dx=x-r.left; dy=y-r.top; moved=false; drag=true; fab.classList.add('drag'); }
+  function move(x,y){ if(!drag)return; moved=true; fab.style.right='auto'; fab.style.bottom='auto';
+    fab.style.left=Math.max(4,Math.min(innerWidth-fab.offsetWidth-4,x-dx))+'px';
+    fab.style.top=Math.max(4,Math.min(innerHeight-fab.offsetHeight-4,y-dy))+'px'; }
+  function up(){ drag=false; fab.classList.remove('drag'); }
+  fab.addEventListener('mousedown',e=>{ if(e.target.tagName==='BUTTON'&&!e.shiftKey)return; e.preventDefault(); down(e.clientX,e.clientY); });
+  addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+  addEventListener('mouseup',up);
+  fab.addEventListener('touchstart',e=>{ if(e.target.tagName==='BUTTON')return; down(e.touches[0].clientX,e.touches[0].clientY); },{passive:true});
+  fab.addEventListener('touchmove',e=>{ move(e.touches[0].clientX,e.touches[0].clientY); if(moved)e.preventDefault(); },{passive:false});
+  fab.addEventListener('touchend',up);
+})();
+
+/* ================= 导出 ================= */
+function download(name,url){ const a=document.createElement('a'); a.href=url; a.download=name; a.click(); }
+$('expChart').onclick=()=>{ const s=viewMode,sel=selected; viewMode='chart';selected=null;render(); download('拼豆坐标图.png',cv.toDataURL()); viewMode=s;selected=sel;render(); };
+$('expPreview').onclick=()=>{ const s=viewMode,sel=selected; viewMode='preview';selected=null;render(); download('拼豆成品图.png',cv.toDataURL()); viewMode=s;selected=sel;render(); };
+$('expLayers').onclick=()=>{
+  if(!grid) return;
+  const s=viewMode,sel=selected; viewMode='chart';
+  let i=0;
+  (function next(){
+    if(i>=usedColors.length){ viewMode=s;selected=sel;render(); return; }
+    selected=usedColors[i].code; render();
+    download(`图层_${String(i+1).padStart(2,'0')}_${usedColors[i].code}.png`, cv.toDataURL());
+    i++; setTimeout(next,250); // 逐张下载，避免浏览器拦截
+  })();
+};
+
+/* ================= 自定义调色板 ================= */
+$('applyPal').onclick=()=>{
+  const t=$('palText').value.trim(); if(!t){alert('请粘贴色号');return;}
+  try{ const p=parsePalette(t); if(!p.length) throw 0; PALETTE=p; alert('已应用 '+p.length+' 个颜色，请重新生成。'); }
+  catch{ alert('格式错误，应为：A1 #f7f3d6 每行一个'); }
+};
+</script>
+</body>
+</html>
