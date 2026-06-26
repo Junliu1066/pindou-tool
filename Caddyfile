@@ -1,0 +1,9 @@
+# 拼豆图纸工具 · Caddy 配置（Windows 部署用）
+# 把网站文件放在 C:\pindou 文件夹里（index.html / admin.html）
+# Caddy 会自动为 junliu.online 申请并续期 HTTPS 证书
+
+junliu.online, www.junliu.online {
+    root * C:\pindou
+    file_server
+    encode gzip
+}
