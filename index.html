@@ -6,7 +6,7 @@
 <title>拼豆图纸生成器 · 图片转坐标图</title>
 <script>
 /* ===== 前端日志：捕获错误，存本地，方便用户回报、作者修 bug ===== */
-window.APP_VERSION = '1.0.0';
+window.APP_VERSION = '1.1.0';
 (function(){
   const KEY='pindou_logs', MAX=50;
   try{ localStorage.setItem('pindou_ver', APP_VERSION); }catch{}
@@ -59,6 +59,7 @@ window.APP_VERSION = '1.0.0';
   .drop:hover,.drop.over{border-color:var(--accent);color:var(--text)}
   button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--panel2);color:var(--text);border:1px solid var(--line)}
   button.primary{background:var(--accent);color:#06101f;border-color:transparent}
+  button.active{background:var(--accent2);color:#04210f;border-color:transparent}
   button.primary:disabled{opacity:.4;cursor:not-allowed}
   button.go{background:var(--accent2);color:#04210f;border-color:transparent;width:100%;padding:11px;font-size:14px;margin-top:14px}
   .row{display:flex;gap:8px}
@@ -167,6 +168,15 @@ window.APP_VERSION = '1.0.0';
       <option value="5" selected>5mm（标准豆）</option>
     </select>
 
+    <label>去杂色（减少零散杂色，更好拼）</label>
+    <select id="denoise">
+      <option value="0">不处理（最还原）</option>
+      <option value="1">弱</option>
+      <option value="2" selected>中（推荐）</option>
+      <option value="3">强（颜色最少最好拼）</option>
+    </select>
+    <div class="hint">越强：清掉孤立单颗杂色、合并用得很少的颜色。脸部建议「中/强」。</div>
+
     <div class="advice" id="advice">上传图片后给出大图/小图建议。</div>
 
     <button class="go" id="gen" disabled>生成坐标图 →</button>
@@ -189,6 +199,9 @@ window.APP_VERSION = '1.0.0';
       <label style="margin:0"><input type="checkbox" id="grid" checked style="width:auto"> 网格线</label>
       <label style="margin:0"><input type="checkbox" id="guide" checked style="width:auto"> 辅助线<span class="small">(5/10格)</span></label>
       <button id="clearSel" style="display:none">显示全部颜色</button>
+      <button id="editToggle">✏️ 手动修豆</button>
+      <button id="undoBtn" style="display:none">↶ 撤销</button>
+      <span id="brushTip" class="small" style="display:none">已选画笔 <b id="brushCode" style="color:var(--accent2)">—</b>，点格子/拖动修改</span>
       <div style="flex:1"></div>
       <div class="exp">
         <button id="expChart">导出坐标图 PNG</button>
@@ -315,29 +328,137 @@ function generate(){
   tx.drawImage(srcImg,0,0,cols,rows);
   const data=tx.getImageData(0,0,cols,rows).data;
   grid=new Array(rows);
-  const counts={};
   for(let y=0;y<rows;y++){
     grid[y]=new Array(cols);
     for(let x=0;x<cols;x++){
       const i=(y*cols+x)*4, a=data[i+3];
       if(a<32){ grid[y][x]=null; continue; } // 透明=空位
-      const p=nearest(data[i],data[i+1],data[i+2]);
-      grid[y][x]=p;
-      counts[p.code]=(counts[p.code]||0)+1;
+      grid[y][x]=nearest(data[i],data[i+1],data[i+2]);
     }
   }
-  usedColors=PALETTE.filter(p=>counts[p.code]).map(p=>({...p,count:counts[p.code]})).sort((a,b)=>b.count-a.count);
+  denoise(+$('denoise').value);   // 去杂色
+  recountColors();
+  undoStack=[]; $('undoBtn').style.display='none';
   selected=null; setZoom(1);
   try{ localStorage.setItem('pindou_gen_count', (+localStorage.getItem('pindou_gen_count')||0)+1);
        localStorage.setItem('pindou_last_used', new Date().toISOString()); }catch{}
   $('zoomFab').classList.add('show');
   $('empty').style.display='none'; $('cv').style.display='block';
   renderLegend(); render();
+  updateStat();
+}
+function updateStat(){
   $('stat').innerHTML=`共 <b>${usedColors.length}</b> 种颜色　·　<b>${usedColors.reduce((s,c)=>s+c.count,0).toLocaleString()}</b> 颗豆　·　图纸 <b>${gcols}×${grows}</b>`;
+}
+function recountColors(){
+  const counts={};
+  for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){ const p=grid[y][x]; if(p) counts[p.code]=(counts[p.code]||0)+1; }
+  usedColors=PALETTE.filter(p=>counts[p.code]).map(p=>({...p,count:counts[p.code]})).sort((a,b)=>b.count-a.count);
+}
+
+/* ================= 去杂色 ================= */
+function denoise(level){
+  if(!level||!grid) return;
+  // 1) 清孤点：某颗豆若周围 8 格没有一颗同色，替换为周围最多数的颜色
+  const passes = level;          // 强度越高，清得越多
+  for(let pass=0; pass<passes; pass++){
+    const snap=grid.map(r=>r.slice());
+    for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){
+      const p=snap[y][x]; if(!p) continue;
+      const tally={}; let same=0, bestC=null, bestN=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy) continue;
+        const ny=y+dy,nx=x+dx; if(ny<0||nx<0||ny>=grows||nx>=gcols) continue;
+        const q=snap[ny][nx]; if(!q) continue;
+        if(q.code===p.code) same++;
+        tally[q.code]=(tally[q.code]||0)+1;
+        if(tally[q.code]>bestN){ bestN=tally[q.code]; bestC=q; }
+      }
+      // 自己是孤点（最多 1 个同色邻居），且邻居有明显多数 → 同化
+      if(same<=1 && bestC && bestN>=3) grid[y][x]=bestC;
+    }
+  }
+  // 2) 合并稀有色：用得太少的颜色并入“最接近的常用色”
+  const counts={};
+  for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){ const p=grid[y][x]; if(p)counts[p.code]=(counts[p.code]||0)+1; }
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  // 阈值：弱 0.15%、中 0.4%、强 1%（占总豆数比例），低于则合并
+  const ratio=[0,0.0015,0.004,0.01][level];
+  const minCnt=Math.max(2, Math.round(total*ratio));
+  const keep=PALETTE.filter(p=>counts[p.code] && counts[p.code]>=minCnt);
+  if(!keep.length) return;
+  const remap={};
+  PALETTE.forEach(p=>{
+    if(!counts[p.code]) return;
+    if(counts[p.code]>=minCnt){ remap[p.code]=p; return; }
+    // 找最接近的“保留色”
+    let best=keep[0],bd=1e9;
+    for(const k of keep){ const dr=p.rgb[0]-k.rgb[0],dg=p.rgb[1]-k.rgb[1],db=p.rgb[2]-k.rgb[2]; const d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){bd=d;best=k;} }
+    remap[p.code]=best;
+  });
+  for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){ const p=grid[y][x]; if(p) grid[y][x]=remap[p.code]||p; }
+}
+
+/* ================= 手动修豆 ================= */
+let editMode=false, brush=null, undoStack=[], painting=false, stroke=null;
+function setEdit(on){
+  editMode=on;
+  $('editToggle').classList.toggle('active', on);
+  $('editToggle').textContent = on?'✅ 修豆中（点此退出）':'✏️ 手动修豆';
+  $('brushTip').style.display = on?'inline':'none';
+  if(on){ selected=null; $('clearSel').style.display='none'; }
+  cv.style.cursor = on?'crosshair':'default';
+  cv.style.touchAction = on?'none':'auto';  // 修豆时拖动不滚动页面
+  renderLegend();
+}
+function cellFromEvent(e){
+  const r=cv.getBoundingClientRect();
+  const sx=cv.width/r.width, sy=cv.height/r.height;
+  const pad=Math.max(24, Math.round(CELL*0.85));
+  const x=Math.floor((((e.clientX-r.left)*sx)-pad)/CELL);
+  const y=Math.floor((((e.clientY-r.top)*sy)-pad)/CELL);
+  if(x<0||y<0||x>=gcols||y>=grows) return null;
+  return {x,y};
+}
+function paintAt(c){
+  if(!c||!brush) return;
+  const cur=grid[c.y][c.x];
+  if(cur&&cur.code===brush.code) return;
+  stroke.push({x:c.x,y:c.y,prev:cur});
+  grid[c.y][c.x]=brush;
+  render();
+}
+function bindEditEvents(){
+  cv.addEventListener('pointerdown',e=>{
+    if(!editMode) return;
+    if(!brush){ flash('请先在下方色卡点一个颜色作为画笔'); return; }
+    e.preventDefault(); painting=true; stroke=[]; cv.setPointerCapture(e.pointerId);
+    paintAt(cellFromEvent(e));
+  });
+  cv.addEventListener('pointermove',e=>{ if(editMode&&painting) paintAt(cellFromEvent(e)); });
+  cv.addEventListener('pointerup',()=>{
+    if(!editMode||!painting) return; painting=false;
+    if(stroke&&stroke.length){ undoStack.push(stroke); if(undoStack.length>50)undoStack.shift(); $('undoBtn').style.display='inline-block'; recountColors(); renderLegend(); updateStat(); }
+    stroke=null;
+  });
+}
+$('editToggle').onclick=()=>setEdit(!editMode);
+$('undoBtn').onclick=()=>{
+  const s=undoStack.pop(); if(!s) return;
+  s.forEach(c=>grid[c.y][c.x]=c.prev);
+  if(!undoStack.length) $('undoBtn').style.display='none';
+  recountColors(); renderLegend(); updateStat(); render();
+};
+function flash(msg){ // 临时提示
+  let t=document.getElementById('flashTip');
+  if(!t){ t=document.createElement('div'); t.id='flashTip'; document.body.appendChild(t);
+    t.style.cssText='position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#222630;color:#fff;border:1px solid var(--line);padding:9px 14px;border-radius:8px;z-index:80;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.4)'; }
+  t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',1800);
 }
 
 /* ================= 渲染 ================= */
 const cv=$('cv'), ctx=cv.getContext('2d');
+bindEditEvents(); // cv 就绪后再绑定修豆事件
 let CELL=22, zoom=1; // 每颗豆像素 / 缩放倍数
 function cellSize(){
   // 坐标图需要写字，给大一点；预览可小
@@ -428,9 +549,15 @@ function render(){
 function renderLegend(){
   const L=$('legend'); L.innerHTML='';
   usedColors.forEach(c=>{
-    const d=document.createElement('div'); d.className='chip'+(selected===c.code?' active':selected?' dim':'');
+    // 修豆模式：高亮当前画笔色；普通模式：高亮被筛选的色
+    const mark = editMode ? (brush&&brush.code===c.code) : (selected===c.code);
+    const dim  = editMode ? false : (selected&&selected!==c.code);
+    const d=document.createElement('div'); d.className='chip'+(mark?' active':'')+(dim?' dim':'');
     d.innerHTML=`<span class="sw" style="background:${c.hex}"></span><span class="code">${c.code}</span><span class="cnt">${c.count}</span>`;
-    d.onclick=()=>{ selected = selected===c.code?null:c.code; $('clearSel').style.display=selected?'inline-block':'none'; renderLegend(); render(); };
+    d.onclick=()=>{
+      if(editMode){ brush=c; $('brushCode').textContent=c.code; renderLegend(); return; }
+      selected = selected===c.code?null:c.code; $('clearSel').style.display=selected?'inline-block':'none'; renderLegend(); render();
+    };
     L.appendChild(d);
   });
 }
