@@ -6,7 +6,7 @@
 <title>拼豆图纸生成器 · 图片转坐标图</title>
 <script>
 /* ===== 前端日志：捕获错误，存本地，方便用户回报、作者修 bug ===== */
-window.APP_VERSION = '1.1.0';
+window.APP_VERSION = '1.2.0';
 (function(){
   const KEY='pindou_logs', MAX=50;
   try{ localStorage.setItem('pindou_ver', APP_VERSION); }catch{}
@@ -55,6 +55,7 @@ window.APP_VERSION = '1.1.0';
   label{display:block;font-size:12px;color:var(--sub);margin:12px 0 4px}
   input,select,button,textarea{font-family:inherit}
   input[type=number],select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--accent2);height:26px;cursor:pointer}
   .drop{border:2px dashed var(--line);border-radius:10px;padding:26px 12px;text-align:center;color:var(--sub);font-size:13px;cursor:pointer;transition:.15s}
   .drop:hover,.drop.over{border-color:var(--accent);color:var(--text)}
   button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--panel2);color:var(--text);border:1px solid var(--line)}
@@ -168,14 +169,9 @@ window.APP_VERSION = '1.1.0';
       <option value="5" selected>5mm（标准豆）</option>
     </select>
 
-    <label>去杂色（减少零散杂色，更好拼）</label>
-    <select id="denoise">
-      <option value="0">不处理（最还原）</option>
-      <option value="1">弱</option>
-      <option value="2" selected>中（推荐）</option>
-      <option value="3">强（颜色最少最好拼）</option>
-    </select>
-    <div class="hint">越强：清掉孤立单颗杂色、合并用得很少的颜色。脸部建议「中/强」。</div>
+    <label>去杂色强度　<span id="dnVal" style="color:var(--accent2)">中</span></label>
+    <input type="range" id="denoise" min="0" max="100" value="40">
+    <div class="hint">拖动滑块<b>实时预览</b>：越大 → 孤散杂色越少、颜色越少越好拼。脸部建议「中/强」。</div>
 
     <div class="advice" id="advice">上传图片后给出大图/小图建议。</div>
 
@@ -288,6 +284,9 @@ function loadImg(f){
 $('preset').onchange=e=>{ if(e.target.value){$('cols').value=e.target.value; updateAdvice();} };
 $('cols').oninput=updateAdvice;
 $('bead').onchange=updateAdvice;
+function updateDnLabel(){ const v=+$('denoise').value; $('dnVal').textContent = v<=0?'关':v<33?'弱':v<66?'中':'强'; }
+$('denoise').oninput=()=>{ updateDnLabel(); if(rawGrid) applyDenoise(true); };
+updateDnLabel();
 
 function calcRows(){ if(!srcImg) return 0; return Math.round(+$('cols').value * srcImg.height/srcImg.width); }
 
@@ -336,9 +335,8 @@ function generate(){
       grid[y][x]=nearest(data[i],data[i+1],data[i+2]);
     }
   }
-  denoise(+$('denoise').value);   // 去杂色
-  recountColors();
-  undoStack=[]; $('undoBtn').style.display='none';
+  rawGrid = grid.map(r=>r.slice());   // 留存原始量化结果，供滑块实时去杂
+  applyDenoise(false);                // 按当前滑块强度去杂
   selected=null; setZoom(1);
   try{ localStorage.setItem('pindou_gen_count', (+localStorage.getItem('pindou_gen_count')||0)+1);
        localStorage.setItem('pindou_last_used', new Date().toISOString()); }catch{}
@@ -356,11 +354,20 @@ function recountColors(){
   usedColors=PALETTE.filter(p=>counts[p.code]).map(p=>({...p,count:counts[p.code]})).sort((a,b)=>b.count-a.count);
 }
 
-/* ================= 去杂色 ================= */
-function denoise(level){
-  if(!level||!grid) return;
-  // 1) 清孤点：某颗豆若周围 8 格没有一颗同色，替换为周围最多数的颜色
-  const passes = level;          // 强度越高，清得越多
+/* ================= 去杂色（强度 0~100，滑块实时控制）================= */
+let rawGrid=null;
+function applyDenoise(doRender=true){
+  if(!rawGrid) return;
+  grid = rawGrid.map(r=>r.slice());        // 每次都从原始结果重算，可来回拖动
+  denoise(+$('denoise').value);
+  recountColors();
+  undoStack=[]; $('undoBtn').style.display='none';  // 重新去杂会重置手动修改
+  if(doRender){ renderLegend(); updateStat(); render(); }
+}
+function denoise(strength){
+  if(strength<=0||!grid) return;
+  // 1) 清孤点：某颗豆若周围 8 格几乎没有同色，替换为周围最多数的颜色
+  const passes = Math.min(4, Math.round(strength/25));   // 0~4 遍，越强清得越多
   for(let pass=0; pass<passes; pass++){
     const snap=grid.map(r=>r.slice());
     for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){
@@ -382,8 +389,8 @@ function denoise(level){
   const counts={};
   for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){ const p=grid[y][x]; if(p)counts[p.code]=(counts[p.code]||0)+1; }
   const total=Object.values(counts).reduce((a,b)=>a+b,0);
-  // 阈值：弱 0.15%、中 0.4%、强 1%（占总豆数比例），低于则合并
-  const ratio=[0,0.0015,0.004,0.01][level];
+  // 占总豆数比例阈值随强度增大（0 ~ 1.2%），低于则合并到最近常用色
+  const ratio=(strength/100)*0.012;
   const minCnt=Math.max(2, Math.round(total*ratio));
   const keep=PALETTE.filter(p=>counts[p.code] && counts[p.code]>=minCnt);
   if(!keep.length) return;
