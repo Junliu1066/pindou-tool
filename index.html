@@ -47,6 +47,9 @@ window.APP_VERSION = '1.4.0';
   header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   header h1{font-size:18px}
   header .tag{font-size:12px;color:var(--sub);background:var(--panel2);padding:3px 9px;border-radius:20px}
+  .notice{margin:14px 16px 0;padding:12px 14px;border:1px solid #315b8f;background:#111b2b;border-radius:10px;font-size:13px;color:#d8e9ff}
+  .notice b{color:#fff}
+  .notice ul{margin:6px 0 0 18px;color:#b7c9df}
   .wrap{display:flex;gap:16px;padding:16px;flex-wrap:wrap;align-items:flex-start}
   .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
   .left{width:320px;flex-shrink:0}
@@ -112,6 +115,7 @@ window.APP_VERSION = '1.4.0';
   @media (max-width:860px){
     header{padding:12px 14px;gap:8px}
     header h1{font-size:16px}
+    .notice{margin:10px 10px 0;font-size:12.5px}
     .wrap{padding:10px;gap:12px}
     .left,.right{width:100%;flex:1 1 100%;min-width:0}
     .col{padding:13px;border-radius:11px}
@@ -143,6 +147,15 @@ window.APP_VERSION = '1.4.0';
   <span class="tag">纯本地·不上传服务器</span>
 </header>
 
+<div class="notice">
+  <b>更新公告 · 2026-06-30</b>
+  <ul>
+    <li>修复全部风格的边缘算法：动漫、真人、插画、像素都启用边缘保护，避免轮廓糊在一起。</li>
+    <li>真人照片风改为高保真处理，取消额外模糊，人物和五官边缘更清晰。</li>
+    <li>颜色匹配升级为 Lab 感知色差，降低生成图和真实颜色之间的明显色差。</li>
+  </ul>
+</div>
+
 <div class="wrap">
   <!-- ============ 左侧：设置 ============ -->
   <div class="col left">
@@ -165,12 +178,12 @@ window.APP_VERSION = '1.4.0';
     <h2 style="margin-top:18px">3 · 风格预设</h2>
     <label>图像风格</label>
     <select id="style">
-      <option value="anime">🎌 动漫/漫画风 — 脸平线硬杂色少</option>
-      <option value="photo">📷 真人照片风 — 不碎但保留层次</option>
-      <option value="illustration">🎨 插画/海报风 — 轮廓稳主色不散</option>
-      <option value="pixel">👾 像素/图标风 — 宁硬不糊</option>
+      <option value="anime">🎌 动漫/漫画风 — 线条清块面稳不糊边</option>
+      <option value="photo">📷 真人照片风 — 高保真肤色准边缘清</option>
+      <option value="illustration">🎨 插画/海报风 — 轮廓锐主色稳不糊边</option>
+      <option value="pixel">👾 像素/图标风 — 硬边少改色不糊</option>
     </select>
-    <div class="hint" id="styleHint" style="color:var(--accent2)">脸平、线硬、杂色少</div>
+    <div class="hint" id="styleHint" style="color:var(--accent2)">线条清、块面稳、不糊边</div>
 
     <h2 style="margin-top:18px">4 · 设计尺寸</h2>
     <label>拼豆宽度（横向几颗豆）</label>
