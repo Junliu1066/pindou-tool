@@ -430,14 +430,30 @@ function switchBrand(brand){
 }
 function hex2rgb(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 function lum(c){return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];}
+function rgb2lab(r,g,b){
+  r/=255; g/=255; b/=255;
+  r = r<=0.04045 ? r/12.92 : Math.pow((r+0.055)/1.055, 2.4);
+  g = g<=0.04045 ? g/12.92 : Math.pow((g+0.055)/1.055, 2.4);
+  b = b<=0.04045 ? b/12.92 : Math.pow((b+0.055)/1.055, 2.4);
+  let x=(r*0.4124564 + g*0.3575761 + b*0.1804375)/0.95047;
+  let y=(r*0.2126729 + g*0.7151522 + b*0.0721750)/1.00000;
+  let z=(r*0.0193339 + g*0.1191920 + b*0.9503041)/1.08883;
+  const f=t=>t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  x=f(x); y=f(y); z=f(z);
+  return [116*y-16, 500*(x-y), 200*(y-z)];
+}
+function colorDistanceLab(a,b){
+  const dl=a[0]-b[0], da=a[1]-b[1], db=a[2]-b[2];
+  return dl*dl*1.15 + da*da + db*db;
+}
 
-/* 最近色匹配（加权 RGB，近似感知距离） */
+/* 最近色匹配（Lab 感知距离，减少色彩漂移） */
 function nearest(r,g,b){
   let best=PALETTE[0],bd=1e9;
+  const lab = rgb2lab(r,g,b);
   for(const p of PALETTE){
-    const dr=r-p.rgb[0],dg=g-p.rgb[1],db=b-p.rgb[2];
-    const rm=(r+p.rgb[0])/2;
-    const d=(2+rm/256)*dr*dr+4*dg*dg+(2+(255-rm)/256)*db*db;
+    if(!p.lab) p.lab = rgb2lab(p.rgb[0], p.rgb[1], p.rgb[2]);
+    const d = colorDistanceLab(lab, p.lab);
     if(d<bd){bd=d;best=p;}
   }
   return best;
@@ -446,28 +462,32 @@ function nearest(r,g,b){
 /* ================= 风格预设 ================= */
 const STYLE_PRESETS = {
   anime: {
-    name: '🎌 动漫/漫画风', denoiseStrength: 85, edgeProtect: true,
-    colorMergeAggression: 0.9, minRegionSize: 3, preserveLineart: true,
-    smoothingBefore: 'bilateral', smoothingRadius: 1, targetColorCount: 18,
-    desc: '脸平、线硬、杂色少'
+    name: '🎌 动漫/漫画风', denoiseStrength: 68, edgeProtect: true,
+    colorMergeAggression: 0.55, minRegionSize: 2, preserveLineart: true,
+    smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 24,
+    edgeThreshold: 32, colorEdgeThreshold: 18, edgeProtectRadius: 1,
+    desc: '线条清、块面稳、不糊边'
   },
   photo: {
-    name: '📷 真人照片风', denoiseStrength: 45, edgeProtect: false,
-    colorMergeAggression: 0.5, minRegionSize: 2, preserveLineart: false,
-    smoothingBefore: 'gaussian', smoothingRadius: 0.6, targetColorCount: 28,
-    desc: '不碎但保留层次'
+    name: '📷 真人照片风', denoiseStrength: 24, edgeProtect: true,
+    colorMergeAggression: 0.18, minRegionSize: 1, preserveLineart: false,
+    smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 40,
+    edgeThreshold: 28, colorEdgeThreshold: 14, edgeProtectRadius: 1,
+    desc: '高保真、肤色准、边缘清'
   },
   illustration: {
-    name: '🎨 插画/海报风', denoiseStrength: 70, edgeProtect: true,
-    colorMergeAggression: 0.75, minRegionSize: 3, preserveLineart: true,
-    smoothingBefore: 'bilateral', smoothingRadius: 1, targetColorCount: 22,
-    desc: '轮廓稳、主色不散'
+    name: '🎨 插画/海报风', denoiseStrength: 56, edgeProtect: true,
+    colorMergeAggression: 0.45, minRegionSize: 2, preserveLineart: true,
+    smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 28,
+    edgeThreshold: 30, colorEdgeThreshold: 16, edgeProtectRadius: 1,
+    desc: '轮廓锐、主色稳、不糊边'
   },
   pixel: {
-    name: '👾 像素/图标风', denoiseStrength: 25, edgeProtect: true,
-    colorMergeAggression: 0.3, minRegionSize: 1, preserveLineart: true,
+    name: '👾 像素/图标风', denoiseStrength: 18, edgeProtect: true,
+    colorMergeAggression: 0.15, minRegionSize: 1, preserveLineart: true,
     smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 32,
-    desc: '宁硬不糊'
+    edgeThreshold: 22, colorEdgeThreshold: 12, edgeProtectRadius: 1,
+    desc: '硬边、少改色、不糊'
   }
 };
 let currentStyle = 'anime';
@@ -482,8 +502,9 @@ function applyStylePreset(key){
   if(rawGrid){
     // 已生成图纸：重新用新风格参数去杂
     grid = rawGrid.map(r=>r.slice());
-    edgeMask = s.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows) : null;
+    edgeMask = s.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows, s) : null;
     denoiseWithStyle(s, edgeMask);
+    restoreProtectedEdges(s);
     recountColors();
     undoStack = []; $('undoBtn').style.display = 'none';
     renderLegend(); updateStat(); render();
@@ -556,9 +577,29 @@ function gaussianBlur(data, w, h, sigma){
   }
 }
 
-/* Sobel 边缘检测，返回 Uint8Array 蒙版 (0=非边缘, 1=边缘) */
-function computeEdgeMask(grid, w, h){
+function dilateMask(mask, w, h, radius){
+  if(!radius) return mask;
+  const out = new Uint8Array(mask);
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      if(!mask[y*w+x]) continue;
+      for(let dy=-radius; dy<=radius; dy++){
+        for(let dx=-radius; dx<=radius; dx++){
+          const nx=x+dx, ny=y+dy;
+          if(nx<0||ny<0||nx>=w||ny>=h) continue;
+          out[ny*w+nx] = 1;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/* 亮度 + Lab 色差边缘检测，返回 Uint8Array 蒙版 (0=非边缘, 1=边缘) */
+function computeEdgeMask(grid, w, h, style=STYLE_PRESETS[currentStyle]){
   const mask = new Uint8Array(w*h);
+  const lumThreshold = style.edgeThreshold || 36;
+  const colorThreshold = style.colorEdgeThreshold || 16;
   for(let y=1; y<h-1; y++){
     for(let x=1; x<w-1; x++){
       const p = grid[y][x]; if(!p) continue;
@@ -568,10 +609,20 @@ function computeEdgeMask(grid, w, h){
       const g20=g(grid[y+1][x-1]), g21=g(grid[y+1][x]), g22=g(grid[y+1][x+1]);
       const sx = -g00 -2*g10 -g20 + g02 +2*g12 +g22;
       const sy = -g00 -2*g01 -g02 + g20 +2*g21 +g22;
-      if(Math.sqrt(sx*sx+sy*sy) > 40) mask[y*w+x] = 1;
+      let maxColorEdge = 0;
+      if(!p.lab) p.lab = rgb2lab(p.rgb[0], p.rgb[1], p.rgb[2]);
+      for(let dy=-1; dy<=1; dy++){
+        for(let dx=-1; dx<=1; dx++){
+          if(!dx&&!dy) continue;
+          const q = grid[y+dy][x+dx]; if(!q) continue;
+          if(!q.lab) q.lab = rgb2lab(q.rgb[0], q.rgb[1], q.rgb[2]);
+          maxColorEdge = Math.max(maxColorEdge, Math.sqrt(colorDistanceLab(p.lab, q.lab)));
+        }
+      }
+      if(Math.sqrt(sx*sx+sy*sy) > lumThreshold || maxColorEdge > colorThreshold) mask[y*w+x] = 1;
     }
   }
-  // 动漫/像素风格：额外保护深色线稿（亮度<80的像素视为线稿）
+  // 风格化图保护深色线稿；照片风只保护 Sobel 识别到的真实明暗边缘。
   if(currentStyle==='anime'||currentStyle==='pixel'||currentStyle==='illustration'){
     for(let y=0; y<h; y++){
       for(let x=0; x<w; x++){
@@ -581,7 +632,19 @@ function computeEdgeMask(grid, w, h){
       }
     }
   }
-  return mask;
+  return dilateMask(mask, w, h, style.edgeProtectRadius || 0);
+}
+
+function restoreProtectedEdges(style){
+  if(!style.edgeProtect || !edgeMask || !rawGrid || !grid) return;
+  for(let y=0;y<grows;y++){
+    for(let x=0;x<gcols;x++){
+      const i = y*gcols+x;
+      if(edgeMask[i] && rawGrid[y][x] && grid[y][x] && grid[y][x].code !== rawGrid[y][x].code){
+        grid[y][x] = rawGrid[y][x];
+      }
+    }
+  }
 }
 
 /* 连通区域清理：BFS 找小色块，< minSize 的并入周围主色 */
@@ -708,8 +771,9 @@ function generate(){
   // 第1阶段：创建目标分辨率画布
   const tmp=document.createElement('canvas'); tmp.width=cols; tmp.height=rows;
   const tx=tmp.getContext('2d');
-  // 像素风格关闭平滑插值
-  tx.imageSmoothingEnabled = style.smoothingBefore !== 'none';
+  // 像素风格关闭缩放插值；其他风格只做高质量缩放，不再额外模糊边缘。
+  tx.imageSmoothingEnabled = currentStyle !== 'pixel';
+  tx.imageSmoothingQuality = currentStyle === 'photo' ? 'high' : 'medium';
   tx.drawImage(srcImg,0,0,cols,rows);
 
   // 第2阶段：风格预处理（双边滤波 / 高斯模糊 / 无）
@@ -736,7 +800,7 @@ function generate(){
   rawGrid = grid.map(r=>r.slice());
 
   // 第4阶段：计算边缘蒙版（需要保护边缘的风格）
-  edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, cols, rows) : null;
+  edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, cols, rows, style) : null;
 
   // 第5阶段：风格感知去杂 + 连通区域清理
   $('denoise').value = style.denoiseStrength;
@@ -745,16 +809,9 @@ function generate(){
   cleanupSmallRegions(style.minRegionSize);
   recountColors();
 
-  // 第6阶段（动漫/插画）：边缘回填——边缘上的豆若被合并，恢复为原量化色
-  if(style.edgeProtect && edgeMask && (currentStyle==='anime'||currentStyle==='illustration')){
-    for(let y=0;y<grows;y++){
-      for(let x=0;x<gcols;x++){
-        if(edgeMask[y*gcols+x] && rawGrid[y][x] && grid[y][x] && grid[y][x].code !== rawGrid[y][x].code){
-          // 边缘像素被去杂改变了，回填原色
-          grid[y][x] = rawGrid[y][x];
-        }
-      }
-    }
+  // 第6阶段：边缘回填，避免去杂/稀有色合并把轮廓糊在一起。
+  if(style.edgeProtect && edgeMask){
+    restoreProtectedEdges(style);
     recountColors();
   }
 
@@ -783,9 +840,10 @@ function applyDenoise(doRender=true){
   const baseStyle = STYLE_PRESETS[currentStyle];
   // 滑块值覆盖预设的去杂强度，其他参数保留风格设定
   const style = {...baseStyle, denoiseStrength: +$('denoise').value};
-  edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows) : null;
+  edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows, style) : null;
   denoiseWithStyle(style, edgeMask);
   cleanupSmallRegions(style.minRegionSize);
+  restoreProtectedEdges(style);
   recountColors();
   undoStack=[]; $('undoBtn').style.display='none';  // 重新去杂会重置手动修改
   if(doRender){ renderLegend(); updateStat(); render(); }
@@ -835,7 +893,12 @@ function denoiseWithStyle(style, edge){
     if(!counts[p.code]) return;
     if(counts[p.code]>=minCnt){ remap[p.code]=p; return; }
     let best=keep[0],bd=1e9;
-    for(const k of keep){ const dr=p.rgb[0]-k.rgb[0],dg=p.rgb[1]-k.rgb[1],db=p.rgb[2]-k.rgb[2]; const d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){bd=d;best=k;} }
+    if(!p.lab) p.lab = rgb2lab(p.rgb[0], p.rgb[1], p.rgb[2]);
+    for(const k of keep){
+      if(!k.lab) k.lab = rgb2lab(k.rgb[0], k.rgb[1], k.rgb[2]);
+      const d=colorDistanceLab(p.lab, k.lab);
+      if(d<bd){bd=d;best=k;}
+    }
     remap[p.code]=best;
   });
   for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){
