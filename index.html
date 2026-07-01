@@ -6,7 +6,7 @@
 <title>拼豆图纸生成器 · 图片转坐标图</title>
 <script>
 /* ===== 前端日志：捕获错误，存本地，方便用户回报、作者修 bug ===== */
-window.APP_VERSION = '1.5.0';
+window.APP_VERSION = '1.4.0';
 (function(){
   const KEY='pindou_logs', MAX=50;
   try{ localStorage.setItem('pindou_ver', APP_VERSION); }catch{}
@@ -50,7 +50,6 @@ window.APP_VERSION = '1.5.0';
   .notice{margin:14px 16px 0;padding:12px 14px;border:1px solid #315b8f;background:#111b2b;border-radius:10px;font-size:13px;color:#d8e9ff}
   .notice b{color:#fff}
   .notice ul{margin:6px 0 0 18px;color:#b7c9df}
-  .notice+.notice{margin-top:8px}
   .wrap{display:flex;gap:16px;padding:16px;flex-wrap:wrap;align-items:flex-start}
   .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
   .left{width:320px;flex-shrink:0}
@@ -75,13 +74,6 @@ window.APP_VERSION = '1.5.0';
   .advice.warn{border-color:#7a5e16;background:#241f10}
   .advice.bad{border-color:#7a2b2b;background:#241313}
   .advice b{color:var(--text)}
-  .import-panel{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
-  .import-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
-  .import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .import-actions button{flex:1}
-  .progress{height:7px;background:#11151d;border-radius:999px;overflow:hidden;margin-top:10px;border:1px solid var(--line)}
-  .progress i{display:block;height:100%;width:0;background:var(--accent2);transition:width .18s}
-  .lowconf{margin-top:8px;padding:8px 10px;border:1px solid #7a5e16;background:#241f10;border-radius:8px;font-size:12px;color:#f9df91;display:none}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{border:none;border-radius:0;background:var(--panel2);padding:7px 13px}
@@ -136,7 +128,6 @@ window.APP_VERSION = '1.5.0';
     .seg button{padding:10px 14px}
     .chip{padding:8px 9px}
     input[type=number],select{padding:11px 10px;font-size:16px} /* 16px 防 iOS 自动放大 */
-    .import-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
     #zoomFab button{width:42px;height:42px;font-size:20px}
     #zoomFab #zoomLvl{min-width:54px;font-size:13px}
   }
@@ -157,15 +148,6 @@ window.APP_VERSION = '1.5.0';
 </header>
 
 <div class="notice">
-  <b>更新公告 · 2026-07-01</b>
-  <ul>
-    <li>新增「导入已有拼豆坐标图」P0：上传平台保存的图纸后，自动识别网格、提取单格主色、匹配色卡并进入可编辑拼豆板。</li>
-    <li>导入主流程不使用 OCR，也不依赖 AI 生图；按单格内部区域取色，避开格线、文字和压缩噪点。</li>
-    <li>新增低置信度提示、边界/行列兜底修正、相似低置信度颜色批量修正。</li>
-  </ul>
-</div>
-
-<div class="notice">
   <b>更新公告 · 2026-06-30</b>
   <ul>
     <li>修复全部风格的边缘算法：动漫、真人、插画、像素都启用边缘保护，避免轮廓糊在一起。</li>
@@ -180,28 +162,6 @@ window.APP_VERSION = '1.5.0';
     <h2>1 · 上传图片</h2>
     <div class="drop" id="drop">点击或拖入图片<br><span class="small">支持 png / jpg</span></div>
     <input type="file" id="file" accept="image/*" hidden>
-
-    <div class="import-panel">
-      <h2>导入已有拼豆坐标图</h2>
-      <div class="drop" id="importDrop">上传小红书/抖音/微信保存的坐标图<br><span class="small">支持 png / jpg / jpeg / webp</span></div>
-      <input type="file" id="importFile" accept="image/png,image/jpeg,image/webp" hidden>
-      <div class="progress" id="importProgress" style="display:none"><i id="importBar"></i></div>
-      <div class="advice" id="importStatus">导入会自动识别图纸区域、网格、颜色和空白格。</div>
-      <div class="import-tools">
-        <label>左 <input type="number" id="impLeft" min="0" value="0"></label>
-        <label>上 <input type="number" id="impTop" min="0" value="0"></label>
-        <label>右 <input type="number" id="impRight" min="1" value="0"></label>
-        <label>下 <input type="number" id="impBottom" min="1" value="0"></label>
-        <label>列数 <input type="number" id="impCols" min="2" max="300" value="0"></label>
-        <label>行数 <input type="number" id="impRows" min="2" max="300" value="0"></label>
-      </div>
-      <div class="import-actions">
-        <button id="rerunImport" disabled>按当前边界重识别</button>
-        <button id="acceptImport" class="primary" disabled>确认使用</button>
-      </div>
-      <div class="lowconf" id="lowConfBox"></div>
-      <div class="hint">识别失败会说明原因。边界和行列数是兜底修正，清晰规则图纸默认只需上传和确认。</div>
-    </div>
 
     <h2 style="margin-top:18px">2 · 选择品牌色库</h2>
     <label>拼豆品牌</label>
@@ -218,13 +178,12 @@ window.APP_VERSION = '1.5.0';
     <h2 style="margin-top:18px">3 · 风格预设</h2>
     <label>图像风格</label>
     <select id="style">
-      <option value="default">默认 / 不套风格 — 保持原始处理</option>
       <option value="anime">🎌 动漫/漫画风 — 线条清块面稳不糊边</option>
       <option value="photo">📷 真人照片风 — 高保真肤色准边缘清</option>
       <option value="illustration">🎨 插画/海报风 — 轮廓锐主色稳不糊边</option>
       <option value="pixel">👾 像素/图标风 — 硬边少改色不糊</option>
     </select>
-    <div class="hint" id="styleHint" style="color:var(--accent2)">不额外套风格，保留之前默认处理</div>
+    <div class="hint" id="styleHint" style="color:var(--accent2)">线条清、块面稳、不糊边</div>
 
     <h2 style="margin-top:18px">4 · 设计尺寸</h2>
     <label>拼豆宽度（横向几颗豆）</label>
@@ -250,7 +209,7 @@ window.APP_VERSION = '1.5.0';
 
     <label>去杂色强度　<span id="dnVal" style="color:var(--accent2)">中</span></label>
     <input type="range" id="denoise" min="0" max="100" value="40">
-    <div class="hint">拖动滑块<b>实时预览</b>：只控制杂色清理，不跟风格绑定。小图会自动保护边缘，避免强去杂色把脸和轮廓糊掉。</div>
+    <div class="hint">拖动滑块<b>实时预览</b>：越大 → 孤散杂色越少、颜色越少越好拼。脸部建议「中/强」。</div>
 
     <div class="advice" id="advice">上传图片后给出大图/小图建议。</div>
 
@@ -515,81 +474,50 @@ function nearest(r,g,b){
 
 /* ================= 风格预设 ================= */
 const STYLE_PRESETS = {
-  default: {
-    name: '默认 / 不套风格', defaultDenoise: 40, edgeProtect: true,
-    colorMergeAggression: 0.28, minRegionSize: 1, preserveLineart: false,
-    smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 36,
-    edgeThreshold: 30, colorEdgeThreshold: 15, edgeProtectRadius: 1,
-    desc: '不额外套风格，保留之前默认处理'
-  },
   anime: {
-    name: '🎌 动漫/漫画风', defaultDenoise: 68, edgeProtect: true,
+    name: '🎌 动漫/漫画风', denoiseStrength: 68, edgeProtect: true,
     colorMergeAggression: 0.55, minRegionSize: 2, preserveLineart: true,
     smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 24,
     edgeThreshold: 32, colorEdgeThreshold: 18, edgeProtectRadius: 1,
     desc: '线条清、块面稳、不糊边'
   },
   photo: {
-    name: '📷 真人照片风', defaultDenoise: 24, edgeProtect: true,
+    name: '📷 真人照片风', denoiseStrength: 24, edgeProtect: true,
     colorMergeAggression: 0.18, minRegionSize: 1, preserveLineart: false,
     smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 40,
     edgeThreshold: 28, colorEdgeThreshold: 14, edgeProtectRadius: 1,
     desc: '高保真、肤色准、边缘清'
   },
   illustration: {
-    name: '🎨 插画/海报风', defaultDenoise: 56, edgeProtect: true,
+    name: '🎨 插画/海报风', denoiseStrength: 56, edgeProtect: true,
     colorMergeAggression: 0.45, minRegionSize: 2, preserveLineart: true,
     smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 28,
     edgeThreshold: 30, colorEdgeThreshold: 16, edgeProtectRadius: 1,
     desc: '轮廓锐、主色稳、不糊边'
   },
   pixel: {
-    name: '👾 像素/图标风', defaultDenoise: 18, edgeProtect: true,
+    name: '👾 像素/图标风', denoiseStrength: 18, edgeProtect: true,
     colorMergeAggression: 0.15, minRegionSize: 1, preserveLineart: true,
     smoothingBefore: 'none', smoothingRadius: 0, targetColorCount: 32,
     edgeThreshold: 22, colorEdgeThreshold: 12, edgeProtectRadius: 1,
     desc: '硬边、少改色、不糊'
   }
 };
-let currentStyle = 'default';
+let currentStyle = 'anime';
 let edgeMask = null;  // 边缘蒙版，供去杂时保护边缘
-
-function getEffectiveStyle(cols=gcols){
-  const base = STYLE_PRESETS[currentStyle] || STYLE_PRESETS.default;
-  const denoise = +$('denoise').value;
-  const style = {...base, denoiseStrength: denoise};
-  if(cols && cols <= 29){
-    style.denoiseStrength = Math.min(denoise, 38);
-    style.colorMergeAggression = Math.min(style.colorMergeAggression, 0.22);
-    style.minRegionSize = 1;
-    style.edgeThreshold = Math.max(18, (style.edgeThreshold || 30) - 8);
-    style.colorEdgeThreshold = Math.max(9, (style.colorEdgeThreshold || 15) - 5);
-    style.edgeProtectRadius = Math.max(style.edgeProtectRadius || 0, 1);
-    style.smallDetailMode = true;
-  }else if(cols && cols <= 58){
-    style.denoiseStrength = Math.min(denoise, 55);
-    style.colorMergeAggression = Math.min(style.colorMergeAggression, 0.38);
-    style.minRegionSize = Math.min(style.minRegionSize || 1, 1);
-    style.edgeThreshold = Math.max(20, (style.edgeThreshold || 30) - 5);
-    style.colorEdgeThreshold = Math.max(10, (style.colorEdgeThreshold || 15) - 3);
-    style.edgeProtectRadius = Math.max(style.edgeProtectRadius || 0, 1);
-    style.smallDetailMode = true;
-  }
-  return style;
-}
 
 function applyStylePreset(key){
   currentStyle = key;
   const s = STYLE_PRESETS[key];
+  $('denoise').value = s.denoiseStrength;
+  updateDnLabel();
   $('styleHint').textContent = s.desc;
   if(rawGrid){
-    // 已生成图纸：重新用新风格参数去杂，去杂色滑块保持用户当前值。
+    // 已生成图纸：重新用新风格参数去杂
     grid = rawGrid.map(r=>r.slice());
-    const style = getEffectiveStyle(gcols);
-    edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows, style) : null;
-    denoiseWithStyle(style, edgeMask);
-    cleanupSmallRegions(style.minRegionSize);
-    restoreProtectedEdges(style);
+    edgeMask = s.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows, s) : null;
+    denoiseWithStyle(s, edgeMask);
+    restoreProtectedEdges(s);
     recountColors();
     undoStack = []; $('undoBtn').style.display = 'none';
     renderLegend(); updateStat(); render();
@@ -662,37 +590,6 @@ function gaussianBlur(data, w, h, sigma){
   }
 }
 
-function sharpenImageData(data, w, h, amount){
-  if(amount<=0) return;
-  const src = new Uint8ClampedArray(data);
-  const a = amount;
-  const center = 1 + 4*a;
-  const side = -a;
-  for(let y=0; y<h; y++){
-    for(let x=0; x<w; x++){
-      const i = (y*w+x)*4;
-      for(let c=0; c<3; c++){
-        const self = src[i+c] * center;
-        const left = src[(y*w+Math.max(0,x-1))*4+c] * side;
-        const right = src[(y*w+Math.min(w-1,x+1))*4+c] * side;
-        const up = src[(Math.max(0,y-1)*w+x)*4+c] * side;
-        const down = src[(Math.min(h-1,y+1)*w+x)*4+c] * side;
-        data[i+c] = Math.max(0, Math.min(255, self + left + right + up + down));
-      }
-    }
-  }
-}
-
-function boostLocalContrast(data, w, h, amount){
-  if(amount<=0) return;
-  const factor = 1 + amount;
-  for(let i=0; i<data.length; i+=4){
-    data[i] = Math.max(0, Math.min(255, 128 + (data[i]-128)*factor));
-    data[i+1] = Math.max(0, Math.min(255, 128 + (data[i+1]-128)*factor));
-    data[i+2] = Math.max(0, Math.min(255, 128 + (data[i+2]-128)*factor));
-  }
-}
-
 function dilateMask(mask, w, h, radius){
   if(!radius) return mask;
   const out = new Uint8Array(mask);
@@ -738,8 +635,8 @@ function computeEdgeMask(grid, w, h, style=STYLE_PRESETS[currentStyle]){
       if(Math.sqrt(sx*sx+sy*sy) > lumThreshold || maxColorEdge > colorThreshold) mask[y*w+x] = 1;
     }
   }
-  // 需要线稿保护的风格保留深色小块；默认/照片只保护真实明暗和色差边缘。
-  if(style.preserveLineart){
+  // 风格化图保护深色线稿；照片风只保护 Sobel 识别到的真实明暗边缘。
+  if(currentStyle==='anime'||currentStyle==='pixel'||currentStyle==='illustration'){
     for(let y=0; y<h; y++){
       for(let x=0; x<w; x++){
         const p = grid[y][x]; if(!p||mask[y*w+x]) continue;
@@ -823,7 +720,6 @@ function cleanupSmallRegions(minSize){
 
 /* ================= 状态 ================= */
 let srcImg=null, grid=null, gcols=0, grows=0, usedColors=[], selected=null, viewMode='preview';
-let currentProject=null, importImage=null, importResult=null, lowConfidenceCells=[];
 const $=id=>document.getElementById(id);
 
 /* ================= 上传 ================= */
@@ -839,331 +735,6 @@ function loadImg(f){
   img.onload=()=>{ srcImg=img; drop.innerHTML=`已载入 ${img.width}×${img.height}px<br><span class="small">点击更换</span>`; $('gen').disabled=false; updateAdvice(); };
   img.src=URL.createObjectURL(f);
 }
-
-/* ================= 导入已有坐标图 ================= */
-const importDrop=$('importDrop'), importFile=$('importFile');
-importDrop.onclick=()=>importFile.click();
-importFile.onchange=e=>{ if(e.target.files[0]) loadPatternImport(e.target.files[0]); };
-['dragover','dragenter'].forEach(ev=>importDrop.addEventListener(ev,e=>{e.preventDefault();importDrop.classList.add('over');}));
-['dragleave','drop'].forEach(ev=>importDrop.addEventListener(ev,e=>{e.preventDefault();importDrop.classList.remove('over');}));
-importDrop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadPatternImport(f); });
-
-function setImportProgress(p,msg){
-  $('importProgress').style.display='block';
-  $('importBar').style.width=Math.max(0,Math.min(100,p))+'%';
-  if(msg) $('importStatus').innerHTML=msg;
-}
-function setImportError(msg){
-  $('importStatus').className='advice bad';
-  $('importStatus').innerHTML='<b>识别失败。</b><br>'+msg;
-  $('acceptImport').disabled=true;
-  $('rerunImport').disabled=!importImage;
-  $('importProgress').style.display='none';
-}
-function setImportOk(msg){
-  $('importStatus').className='advice ok';
-  $('importStatus').innerHTML=msg;
-}
-function canvasFromImage(img, maxSide=1800){
-  const scale=Math.min(1, maxSide/Math.max(img.width,img.height));
-  const c=document.createElement('canvas');
-  c.width=Math.max(1,Math.round(img.width*scale));
-  c.height=Math.max(1,Math.round(img.height*scale));
-  const x=c.getContext('2d');
-  x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-  x.drawImage(img,0,0,c.width,c.height);
-  return {canvas:c,ctx:x,scale};
-}
-function pixelAt(data,w,x,y){
-  const i=(y*w+x)*4;
-  return [data[i],data[i+1],data[i+2],data[i+3]];
-}
-function satOf(r,g,b){
-  const max=Math.max(r,g,b), min=Math.min(r,g,b);
-  return max ? (max-min)/max : 0;
-}
-function isPaperBg(r,g,b){
-  return r>218 && g>218 && b>218 && satOf(r,g,b)<0.10;
-}
-function detectPatternArea(imageData,w,h){
-  const d=imageData.data;
-  let minX=w, minY=h, maxX=-1, maxY=-1;
-  const step=Math.max(1,Math.floor(Math.max(w,h)/900));
-  for(let y=0;y<h;y+=step){
-    for(let x=0;x<w;x+=step){
-      const [r,g,b,a]=pixelAt(d,w,x,y);
-      if(a<20) continue;
-      const l=0.299*r+0.587*g+0.114*b, sat=satOf(r,g,b);
-      const mark=!isPaperBg(r,g,b) && (l<235 || sat>0.08);
-      if(mark){ minX=Math.min(minX,x); minY=Math.min(minY,y); maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); }
-    }
-  }
-  if(maxX<0) throw new Error('没有检测到有效图纸内容，可能是空白图或图片过曝。');
-  const pad=Math.max(4,Math.round(Math.min(w,h)*0.01));
-  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
-  maxX=Math.min(w-1,maxX+pad); maxY=Math.min(h-1,maxY+pad);
-  if(maxX-minX<80 || maxY-minY<80) throw new Error('有效区域太小，无法稳定识别网格。请上传更清晰或更完整的坐标图。');
-  return {left:minX,top:minY,right:maxX,bottom:maxY};
-}
-function lineScores(imageData,w,h,area,axis){
-  const d=imageData.data, scores=[];
-  if(axis==='x'){
-    for(let x=area.left;x<=area.right;x++){
-      let n=0,total=0;
-      for(let y=area.top;y<=area.bottom;y++){
-        const [r,g,b]=pixelAt(d,w,x,y); total++;
-        const l=0.299*r+0.587*g+0.114*b, sat=satOf(r,g,b);
-        if(l<115 || (l<170 && sat<0.18)) n++;
-      }
-      scores.push(n/total);
-    }
-  }else{
-    for(let y=area.top;y<=area.bottom;y++){
-      let n=0,total=0;
-      for(let x=area.left;x<=area.right;x++){
-        const [r,g,b]=pixelAt(d,w,x,y); total++;
-        const l=0.299*r+0.587*g+0.114*b, sat=satOf(r,g,b);
-        if(l<115 || (l<170 && sat<0.18)) n++;
-      }
-      scores.push(n/total);
-    }
-  }
-  return scores;
-}
-function pickLinePeaks(scores, offset){
-  const max=Math.max(...scores), avg=scores.reduce((a,b)=>a+b,0)/scores.length;
-  const threshold=Math.max(avg*2.1, max*0.38, 0.08);
-  const peaks=[];
-  let start=-1,best=-1,bestV=0;
-  for(let i=0;i<scores.length;i++){
-    if(scores[i]>=threshold){
-      if(start<0){ start=i; best=i; bestV=scores[i]; }
-      if(scores[i]>bestV){ best=i; bestV=scores[i]; }
-    }else if(start>=0){
-      peaks.push(offset+best); start=-1; best=-1; bestV=0;
-    }
-  }
-  if(start>=0) peaks.push(offset+best);
-  return peaks;
-}
-function normalizeGridLines(lines, start, end, manualCount){
-  lines=[...new Set(lines)].sort((a,b)=>a-b).filter(v=>v>=start&&v<=end);
-  if(manualCount && manualCount>=2){
-    const step=(end-start)/manualCount;
-    return Array.from({length:manualCount+1},(_,i)=>Math.round(start+i*step));
-  }
-  if(lines.length<5) return null;
-  const gaps=[];
-  for(let i=1;i<lines.length;i++){ const g=lines[i]-lines[i-1]; if(g>=3) gaps.push(g); }
-  if(!gaps.length) return null;
-  gaps.sort((a,b)=>a-b);
-  const cell=gaps[Math.floor(gaps.length/2)];
-  if(cell<6) return null;
-  const first=lines[0], last=lines[lines.length-1];
-  const count=Math.round((last-first)/cell);
-  if(count<2 || count>300) return null;
-  const fitEnd=first+count*cell;
-  if(Math.abs(fitEnd-last)>cell*0.45) return null;
-  return Array.from({length:count+1},(_,i)=>Math.round(first+i*cell));
-}
-function median(vals){
-  vals.sort((a,b)=>a-b);
-  return vals[Math.floor(vals.length/2)];
-}
-function medianColor(samples){
-  return [median(samples.map(p=>p[0])), median(samples.map(p=>p[1])), median(samples.map(p=>p[2]))];
-}
-function extractCellColor(imageData,w,x0,y0,x1,y1){
-  const d=imageData.data;
-  const mx=(x1-x0)*0.24, my=(y1-y0)*0.24;
-  const sx=Math.ceil(x0+mx), ex=Math.floor(x1-mx);
-  const sy=Math.ceil(y0+my), ey=Math.floor(y1-my);
-  const raw=[];
-  for(let y=sy;y<=ey;y++){
-    for(let x=sx;x<=ex;x++){
-      const [r,g,b,a]=pixelAt(d,w,x,y);
-      if(a<20) continue;
-      raw.push([r,g,b]);
-    }
-  }
-  const darkCount=raw.filter(p=>0.299*p[0]+0.587*p[1]+0.114*p[2]<35).length;
-  const darkRatio=raw.length ? darkCount/raw.length : 0;
-  const samples=darkRatio<0.28 ? raw.filter(p=>0.299*p[0]+0.587*p[1]+0.114*p[2]>=35) : raw;
-  if(samples.length<4) return {blank:true,rgb:[255,255,255],confidence:0,variance:999};
-  const med=medianColor(samples);
-  const lab=rgb2lab(med[0],med[1],med[2]);
-  const filtered=samples.filter(p=>Math.sqrt(colorDistanceLab(lab,rgb2lab(p[0],p[1],p[2])))<28);
-  const finalSamples=filtered.length>=4 ? filtered : samples;
-  const rgb=medianColor(finalSamples);
-  const l=0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2], sat=satOf(rgb[0],rgb[1],rgb[2]);
-  let variance=0;
-  const lab2=rgb2lab(rgb[0],rgb[1],rgb[2]);
-  for(const p of finalSamples){ variance+=Math.sqrt(colorDistanceLab(lab2,rgb2lab(p[0],p[1],p[2]))); }
-  variance/=finalSamples.length;
-  const blank=l>226 && sat<0.10 && variance<18;
-  return {blank,rgb,confidence:blank?Math.min(0.98,(l-210)/45):0,variance};
-}
-function nearestCandidates(r,g,b){
-  const lab=rgb2lab(r,g,b);
-  const arr=PALETTE.map(p=>{
-    if(!p.lab) p.lab=rgb2lab(p.rgb[0],p.rgb[1],p.rgb[2]);
-    return {p,d:Math.sqrt(colorDistanceLab(lab,p.lab))};
-  }).sort((a,b)=>a.d-b.d).slice(0,3);
-  const first=arr[0], second=arr[1]||arr[0];
-  const conf=Math.max(0.05, Math.min(0.99, 1 - first.d/58 + Math.max(0,second.d-first.d)/55));
-  return {
-    best:first.p,
-    confidence:conf,
-    candidates:arr.map(x=>({code:x.p.code,confidence:Math.max(0.01,Math.min(0.99,1-x.d/70))}))
-  };
-}
-function buildProjectFromImport(result){
-  const now=new Date().toISOString();
-  const cells=[];
-  for(let row=0; row<result.rows; row++){
-    for(let col=0; col<result.cols; col++){
-      const c=result.cells[row][col];
-      cells.push({
-        row,col,isBlank:c.isBlank,code:c.p&&c.p.code,rgb:c.p&&c.p.rgb,
-        confidence:c.confidence,candidates:c.candidates,source:'algorithm'
-      });
-    }
-  }
-  const materials=Object.values(result.materials).sort((a,b)=>b.count-a.count);
-  return {
-    id:'bp_'+Date.now().toString(36),
-    sourceType:'pattern-import',
-    width:result.cols,
-    height:result.rows,
-    paletteId:currentBrand,
-    cells,materials,
-    createdAt:now,
-    updatedAt:now
-  };
-}
-async function runPatternImport(manual=false){
-  if(!importImage) return;
-  try{
-    setImportProgress(8,'读取图片并压缩到前端可处理尺寸...');
-    await new Promise(r=>setTimeout(r,20));
-    const {canvas,ctx,scale}=canvasFromImage(importImage);
-    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    setImportProgress(24,'自动识别图纸有效区域...');
-    let area;
-    const manualArea={
-      left:+$('impLeft').value, top:+$('impTop').value,
-      right:+$('impRight').value, bottom:+$('impBottom').value
-    };
-    if(manual && manualArea.right>manualArea.left && manualArea.bottom>manualArea.top){
-      area=manualArea;
-    }else{
-      area=detectPatternArea(imageData,canvas.width,canvas.height);
-    }
-    setImportProgress(40,'自动识别网格起点、终点、行数和列数...');
-    const xs=pickLinePeaks(lineScores(imageData,canvas.width,canvas.height,area,'x'), area.left);
-    const ys=pickLinePeaks(lineScores(imageData,canvas.width,canvas.height,area,'y'), area.top);
-    const manualCols=+$('impCols').value || 0, manualRows=+$('impRows').value || 0;
-    const xLines=normalizeGridLines(xs, area.left, area.right, manualCols);
-    const yLines=normalizeGridLines(ys, area.top, area.bottom, manualRows);
-    if(!xLines || !yLines){
-      $('impLeft').value=Math.round(area.left); $('impTop').value=Math.round(area.top);
-      $('impRight').value=Math.round(area.right); $('impBottom').value=Math.round(area.bottom);
-      throw new Error('网格线不够稳定。请检查图片是否清晰，或手动填入边界与行列数后点「按当前边界重识别」。');
-    }
-    const cols=xLines.length-1, rows=yLines.length-1;
-    if(cols<2 || rows<2 || cols>300 || rows>300) throw new Error(`识别到的网格尺寸异常：${cols}×${rows}。请手动修正边界或行列数。`);
-    setImportProgress(62,`已识别 ${cols}×${rows}，正在按单格提取主色...`);
-    const cells=[], materials={}, lows=[];
-    for(let row=0; row<rows; row++){
-      cells[row]=[];
-      for(let col=0; col<cols; col++){
-        const color=extractCellColor(imageData,canvas.width,xLines[col],yLines[row],xLines[col+1],yLines[row+1]);
-        if(color.blank){
-          cells[row][col]={isBlank:true,p:null,confidence:Math.max(0.5,color.confidence),candidates:[],source:'algorithm'};
-          continue;
-        }
-        const match=nearestCandidates(color.rgb[0],color.rgb[1],color.rgb[2]);
-        const confidence=Math.max(0.01, Math.min(0.99, match.confidence - Math.min(0.28,color.variance/120)));
-        const cell={isBlank:false,p:match.best,confidence,candidates:match.candidates,source:'algorithm'};
-        cells[row][col]=cell;
-        materials[match.best.code] ||= {code:match.best.code,rgb:match.best.rgb,count:0};
-        materials[match.best.code].count++;
-        if(confidence<0.58) lows.push({row,col,cell});
-      }
-      if(row%12===0){ setImportProgress(62+Math.round(row/rows*24),`正在识别颜色 ${row+1}/${rows} 行...`); await new Promise(r=>setTimeout(r,0)); }
-    }
-    importResult={canvas,scale,area,xLines,yLines,cols,rows,cells,materials,lowConfidence:lows};
-    $('impLeft').value=Math.round(area.left); $('impTop').value=Math.round(area.top);
-    $('impRight').value=Math.round(area.right); $('impBottom').value=Math.round(area.bottom);
-    $('impCols').value=cols; $('impRows').value=rows;
-    setImportProgress(100,'识别完成，正在生成干净图纸...');
-    applyImportedProject(importResult);
-    $('acceptImport').disabled=false; $('rerunImport').disabled=false;
-    const lowText=lows.length ? `；低置信度 <b>${lows.length}</b> 格，已用橙色框标出，可批量修正` : '；没有明显低置信度格';
-    setImportOk(`已导入 <b>${cols}×${rows}</b> 坐标图，共 <b>${Object.keys(materials).length}</b> 种颜色${lowText}。`);
-    updateLowConfidenceBox();
-  }catch(err){
-    logEvent&&logEvent('import-fail',err.message||err);
-    setImportError(err.message||'无法识别该图纸。');
-  }
-}
-function applyImportedProject(result){
-  gcols=result.cols; grows=result.rows;
-  grid=result.cells.map(row=>row.map(c=>c.isBlank?null:c.p));
-  rawGrid=grid.map(r=>r.slice());
-  currentProject=buildProjectFromImport(result);
-  lowConfidenceCells=result.lowConfidence.map(x=>({row:x.row,col:x.col,candidates:x.cell.candidates||[]}));
-  selected=null; setZoom(1);
-  $('empty').style.display='none'; $('cv').style.display='block'; $('zoomFab').classList.add('show');
-  recountColors(); renderLegend(); updateStat(); render();
-}
-function updateLowConfidenceBox(){
-  const box=$('lowConfBox');
-  if(!lowConfidenceCells.length){ box.style.display='none'; return; }
-  box.style.display='block';
-  box.innerHTML=`低置信度格子：<b>${lowConfidenceCells.length}</b> 个。
-    <button id="selectLowConf" style="margin-left:6px">只看低置信度</button>
-    <button id="batchLowConf" style="margin-left:6px">批量修正相似颜色</button>`;
-  $('selectLowConf').onclick=()=>{ selected=null; render(); flash('低置信度格已用橙色框标出'); };
-  $('batchLowConf').onclick=()=>{
-    if(!brush){ flash('请先进入手动修豆，并在色卡选择一个画笔色'); return; }
-    const changed=[];
-    const targets=lowConfidenceCells.filter(c=>(c.candidates||[]).some(x=>x.code===brush.code));
-    if(!targets.length){ flash('当前画笔不是这些低置信度格子的候选色，请换一个相似色'); return; }
-    for(const c of targets){
-      const prev=grid[c.row][c.col];
-      if(prev&&prev.code===brush.code) continue;
-      changed.push({x:c.col,y:c.row,prev});
-      grid[c.row][c.col]=brush;
-      const projectCell=currentProject&&currentProject.cells.find(x=>x.row===c.row&&x.col===c.col);
-      if(projectCell){ projectCell.isBlank=false; projectCell.code=brush.code; projectCell.rgb=brush.rgb; projectCell.confidence=1; projectCell.source='manual'; }
-    }
-    if(changed.length){
-      undoStack.push(changed); $('undoBtn').style.display='inline-block';
-      const changedSet=new Set(targets.map(c=>c.row+','+c.col));
-      lowConfidenceCells=lowConfidenceCells.filter(c=>!changedSet.has(c.row+','+c.col));
-      recountColors(); renderLegend(); updateStat(); render(); updateLowConfidenceBox();
-    }
-  };
-}
-function loadPatternImport(f){
-  if(!/^image\/(png|jpe?g|webp)$/i.test(f.type)){ setImportError('仅支持 PNG / JPG / JPEG / WEBP。'); return; }
-  const img=new Image();
-  img.onload=()=>{
-    importImage=img;
-    importDrop.innerHTML=`已载入 ${img.width}×${img.height}px<br><span class="small">点击更换</span>`;
-    $('rerunImport').disabled=false;
-    runPatternImport(false);
-  };
-  img.onerror=()=>setImportError('图片读取失败，请换一张清晰原图。');
-  img.src=URL.createObjectURL(f);
-}
-$('rerunImport').onclick=()=>runPatternImport(true);
-$('acceptImport').onclick=()=>{
-  if(!importResult) return;
-  applyImportedProject(importResult);
-  flash('已进入电子拼豆板，可继续修豆、筛色和导出');
-};
 
 /* ================= 尺寸建议 ================= */
 $('preset').onchange=e=>{ if(e.target.value){$('cols').value=e.target.value; updateAdvice();} };
@@ -1208,13 +779,13 @@ $('gen').onclick=generate;
 function generate(){
   const cols=+$('cols').value, rows=calcRows();
   gcols=cols; grows=rows;
-  const style = getEffectiveStyle(cols);
+  const style = STYLE_PRESETS[currentStyle];
 
   // 第1阶段：创建目标分辨率画布
   const tmp=document.createElement('canvas'); tmp.width=cols; tmp.height=rows;
   const tx=tmp.getContext('2d');
-  // 小图优先清晰，不用插值把五官和轮廓平均掉。
-  tx.imageSmoothingEnabled = currentStyle !== 'pixel' && cols > 29;
+  // 像素风格关闭缩放插值；其他风格只做高质量缩放，不再额外模糊边缘。
+  tx.imageSmoothingEnabled = currentStyle !== 'pixel';
   tx.imageSmoothingQuality = currentStyle === 'photo' ? 'high' : 'medium';
   tx.drawImage(srcImg,0,0,cols,rows);
 
@@ -1224,10 +795,6 @@ function generate(){
     bilateralFilter(imageData.data, cols, rows, style.smoothingRadius);
   }else if(style.smoothingBefore === 'gaussian'){
     gaussianBlur(imageData.data, cols, rows, style.smoothingRadius);
-  }
-  if(style.smallDetailMode){
-    boostLocalContrast(imageData.data, cols, rows, cols <= 29 ? 0.12 : 0.07);
-    sharpenImageData(imageData.data, cols, rows, cols <= 29 ? 0.55 : 0.35);
   }
 
   // 第3阶段：量化到品牌色卡
@@ -1248,7 +815,9 @@ function generate(){
   // 第4阶段：计算边缘蒙版（需要保护边缘的风格）
   edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, cols, rows, style) : null;
 
-  // 第5阶段：风格感知去杂 + 连通区域清理。去杂色强度来自独立滑块，不被风格覆盖。
+  // 第5阶段：风格感知去杂 + 连通区域清理
+  $('denoise').value = style.denoiseStrength;
+  updateDnLabel();
   denoiseWithStyle(style, edgeMask);
   cleanupSmallRegions(style.minRegionSize);
   recountColors();
@@ -1270,33 +839,10 @@ function generate(){
 function updateStat(){
   $('stat').innerHTML=`共 <b>${usedColors.length}</b> 种颜色　·　<b>${usedColors.reduce((s,c)=>s+c.count,0).toLocaleString()}</b> 颗豆　·　图纸 <b>${gcols}×${grows}</b>`;
 }
-function syncCurrentProject(){
-  if(!currentProject || !grid) return;
-  const existing=new Map((currentProject.cells||[]).map(c=>[c.row+','+c.col,c]));
-  currentProject.width=gcols; currentProject.height=grows; currentProject.paletteId=currentBrand;
-  currentProject.cells=[];
-  for(let row=0; row<grows; row++){
-    for(let col=0; col<gcols; col++){
-      const p=grid[row][col];
-      const old=existing.get(row+','+col);
-      const unchanged=old && old.isBlank===!p && (!p || old.code===p.code);
-      currentProject.cells.push({
-        row,col,isBlank:!p,code:p&&p.code,rgb:p&&p.rgb,
-        confidence:unchanged ? old.confidence : (p?1:0.95),
-        candidates:unchanged ? old.candidates : undefined,
-        source:unchanged ? old.source : 'manual'
-      });
-    }
-  }
-  currentProject.materials=usedColors.map(c=>({code:c.code,rgb:c.rgb,count:c.count}));
-  currentProject.updatedAt=new Date().toISOString();
-  try{ localStorage.setItem('pindou_current_project', JSON.stringify(currentProject)); }catch{}
-}
 function recountColors(){
   const counts={};
   for(let y=0;y<grows;y++)for(let x=0;x<gcols;x++){ const p=grid[y][x]; if(p) counts[p.code]=(counts[p.code]||0)+1; }
   usedColors=PALETTE.filter(p=>counts[p.code]).map(p=>({...p,count:counts[p.code]})).sort((a,b)=>b.count-a.count);
-  syncCurrentProject();
 }
 
 /* ================= 去杂色（强度 0~100，滑块实时控制）================= */
@@ -1304,7 +850,9 @@ let rawGrid=null;
 function applyDenoise(doRender=true){
   if(!rawGrid) return;
   grid = rawGrid.map(r=>r.slice());        // 每次都从原始结果重算，可来回拖动
-  const style = getEffectiveStyle(gcols);
+  const baseStyle = STYLE_PRESETS[currentStyle];
+  // 滑块值覆盖预设的去杂强度，其他参数保留风格设定
+  const style = {...baseStyle, denoiseStrength: +$('denoise').value};
   edgeMask = style.edgeProtect ? computeEdgeMask(rawGrid, gcols, grows, style) : null;
   denoiseWithStyle(style, edgeMask);
   cleanupSmallRegions(style.minRegionSize);
@@ -1478,9 +1026,6 @@ function render(){
       ctx.fillStyle = lum(p.rgb)>140?'#222':'#fff';
       ctx.fillText(p.code, px+CELL/2, py+CELL/2);
       ctx.globalAlpha = 1;
-    }
-    if(lowConfidenceCells.some(c=>c.row===y&&c.col===x)){
-      ctx.strokeStyle='#fbbf24'; ctx.lineWidth=Math.max(2,CELL*0.14); ctx.strokeRect(px+2,py+2,CELL-4,CELL-4);
     }
     if(isSel){ ctx.strokeStyle='#16a34a'; ctx.lineWidth=Math.max(2,CELL*0.12); ctx.strokeRect(px+1,py+1,CELL-2,CELL-2); }
   }
